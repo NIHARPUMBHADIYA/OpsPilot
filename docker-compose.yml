@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opspilot-api
+    ports:
+      - "7860:7860"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - opspilot-network
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: opspilot-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE=http://api:7860
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - opspilot-network
+
+networks:
+  opspilot-network:
+    driver: bridge
+
+volumes:
+  opspilot-logs:
+  opspilot-data:

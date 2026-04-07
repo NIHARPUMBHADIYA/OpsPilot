@@ -1,0 +1,9 @@
+OpsPilot++
+
+Production-Grade AI Operations Benchmark System
+
+Evaluate intelligent agents on real-world operational tasks with multi-objective scoring, progressive difficulty levels, competitive leaderboards, and advanced evaluation tools.
+
+Built with FastAPI + React | Perfect for hackathons, AI research, and enterprise evaluation
+
+Quick Start: python main.py → http://localhost:3000

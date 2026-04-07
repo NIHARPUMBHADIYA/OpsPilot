@@ -1,0 +1,67 @@
+# Core FastAPI and web framework dependencies
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+
+# Data validation and serialization
+pydantic>=2.5.0
+
+# Scientific computing and data manipulation
+numpy>=1.24.0
+
+# Additional dependencies for OpsPilot functionality
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# Development and code quality
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.7.0
+
+# Logging and monitoring
+structlog>=23.2.0
+
+# Date and time utilities
+python-dateutil>=2.8.2
+
+# Environment and configuration
+python-dotenv>=1.0.0
+
+# CORS support (already included in FastAPI but explicit for clarity)
+# fastapi already includes starlette which provides CORS middleware
+
+# Optional: For enhanced performance
+orjson>=3.9.0
+
+# Optional: For advanced async support
+aiofiles>=23.2.0
+
+# ── Dashboard ────────────────────────────────────────────────────────────────
+streamlit>=1.32.0
+pandas>=2.0.0
+plotly>=5.18.0
+requests>=2.31.0
+reportlab>=4.0.0
+
+# ── AI Providers (install only what you need) ────────────────────────────────
+# OpenAI  →  pip install openai
+openai>=1.12.0
+
+# Anthropic (Claude)  →  pip install anthropic
+# anthropic>=0.20.0
+
+# Google Gemini  →  pip install google-generativeai
+# google-generativeai>=0.4.0
+
+# Mistral / Groq / Together  →  pip install openai   (they use the OpenAI SDK)
+
+# Cohere  →  pip install cohere
+# cohere>=5.0.0
+
+# Ollama (local models)  →  install Ollama from https://ollama.com, then `ollama serve`
+# No extra Python package needed — uses the openai SDK with a local base URL
