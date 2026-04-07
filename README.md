@@ -4,8 +4,6 @@
 
 **Production-Grade Evaluation Platform for Intelligent Agents**
 
-Repository: https://github.com/NIHARPUMBHADIYA/OpsPilot-.git
-
 [![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=flat-square&logo=python)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18+-61dafb?style=flat-square&logo=react)](https://react.dev)
