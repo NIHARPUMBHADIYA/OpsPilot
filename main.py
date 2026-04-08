@@ -3,6 +3,7 @@
 import subprocess
 import sys
 import os
+import json
 from pathlib import Path
 
 # Ensure local project packages are importable when running in a container.
@@ -1028,6 +1029,11 @@ async def get_available_models() -> Dict[str, Any]:
 @app.get("/", response_class=HTMLResponse)
 async def root() -> HTMLResponse:
     """Root endpoint with API information."""
+    health_data = await health_check()
+    models_data = await get_available_models()
+    tasks_data = await get_available_tasks()
+    graders_data = await get_grader_info()
+
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -1085,21 +1091,16 @@ async def root() -> HTMLResponse:
             </ul>
         </div>
         <div class="card">
-            <h2>Quick Links</h2>
-            <ul>
-                <li><a href="/health">Health check</a></li>
-                <li><a href="/tasks">Task list</a></li>
-                <li><a href="/graders">Grader info</a></li>
-            </ul>
+            <h2>Live Health Output</h2>
+            <pre>{json.dumps(health_data, indent=2)}</pre>
         </div>
         <div class="card">
-            <h2>Status</h2>
-            <pre>{
-                'name': 'OpsPilot API',
-                'version': '1.0.0',
-                'description': 'Production-grade OpsPilot environment with comprehensive grading system',
-                'timestamp': '{datetime.now().isoformat()}'
-            }</pre>
+            <h2>Live Models Output</h2>
+            <pre>{json.dumps(models_data, indent=2)}</pre>
+        </div>
+        <div class="card">
+            <h2>Tasks & Graders</h2>
+            <pre>{json.dumps({"tasks": tasks_data, "graders": graders_data}, indent=2)}</pre>
         </div>
     </body>
     </html>
