@@ -112,6 +112,7 @@ print("[OK] Dependencies ready\n")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
@@ -1024,37 +1025,73 @@ async def get_available_models() -> Dict[str, Any]:
 
 # Additional utility endpoints
 
-@app.get("/")
-async def root() -> Dict[str, Any]:
+@app.get("/", response_class=HTMLResponse)
+async def root() -> HTMLResponse:
     """Root endpoint with API information."""
-    return {
-        "name": "OpsPilot API",
-        "version": "1.0.0",
-        "description": "Production-grade OpsPilot environment with comprehensive grading system",
-        "endpoints": {
-            "POST /reset": "Reset environment and get initial observation",
-            "POST /step": "Execute action in environment",
-            "GET /state": "Get complete environment state",
-            "GET /tasks": "Get available task information",
-            "POST /grader": "Grade content using specified grader",
-            "POST /baseline": "Execute baseline agent",
-            "POST /counterfactual": "Evaluate counterfactual scenarios for actions",
-            "GET /health": "Health check endpoint"
-        },
-        "features": {
-            "counterfactual_evaluation": {
-                "description": "What-if analysis without state mutation",
-                "capabilities": ["optimal_baseline", "random_baseline", "regret_analysis", "improvement_insights"],
-                "safety": "State cloning ensures no environment mutation"
-            },
-            "multi_objective_grading": {
-                "graders": ["email", "response", "decision", "scheduling", "final"],
-                "penalty_system": True,
-                "weighted_scoring": True
-            }
-        },
-        "timestamp": datetime.now().isoformat()
-    }
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>OpsPilot API</title>
+        <style>
+            body {{ font-family: Inter, system-ui, sans-serif; margin: 0; padding: 32px; background: #0b1220; color: #f8fafc; }}
+            a {{ color: #7dd3fc; text-decoration: none; }}
+            h1 {{ margin-top: 0; }}
+            .card {{ background: rgba(15, 23, 42, 0.94); border: 1px solid #1e293b; border-radius: 16px; padding: 24px; margin-bottom: 20px; }}
+            .grid {{ display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
+            pre {{ white-space: pre-wrap; word-break: break-word; background: #020617; padding: 16px; border-radius: 12px; overflow-x: auto; }}
+        </style>
+    </head>
+    <body>
+        <h1>OpsPilot API</h1>
+        <p>Production-grade OpsPilot environment with comprehensive grading system.</p>
+        <div class="grid">
+            <div class="card">
+                <h2>Available Endpoints</h2>
+                <ul>
+                    <li><strong>POST</strong> <code>/reset</code></li>
+                    <li><strong>POST</strong> <code>/step</code></li>
+                    <li><strong>GET</strong> <code>/state</code></li>
+                    <li><strong>GET</strong> <code>/tasks</code></li>
+                    <li><strong>POST</strong> <code>/grader</code></li>
+                    <li><strong>POST</strong> <code>/baseline</code></li>
+                    <li><strong>POST</strong> <code>/counterfactual</code></li>
+                    <li><strong>GET</strong> <code>/health</code></li>
+                </ul>
+            </div>
+            <div class="card">
+                <h2>Features</h2>
+                <ul>
+                    <li>Counterfactual evaluation</li>
+                    <li>Multi-objective grading</li>
+                    <li>Baseline agent support</li>
+                    <li>Environment state tracking</li>
+                </ul>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Quick Links</h2>
+            <ul>
+                <li><a href="/health">Health check</a></li>
+                <li><a href="/tasks">Task list</a></li>
+                <li><a href="/graders">Grader info</a></li>
+            </ul>
+        </div>
+        <div class="card">
+            <h2>Raw API JSON</h2>
+            <pre>{{
+                'name': 'OpsPilot API',
+                'version': '1.0.0',
+                'description': 'Production-grade OpsPilot environment with comprehensive grading system',
+                'timestamp': '{datetime.now().isoformat()}'
+            }}</pre>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @app.get("/graders")
