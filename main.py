@@ -112,8 +112,10 @@ print("[OK] Dependencies ready\n")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from datetime import datetime
+import json
 from typing import Dict, Any, Optional, List, Union
 import uvicorn
 import traceback
@@ -1024,35 +1026,72 @@ async def get_available_models() -> Dict[str, Any]:
 
 # Additional utility endpoints
 
-@app.get("/")
-async def root() -> Dict[str, Any]:
+@app.get("/", response_class=HTMLResponse)
+async def root() -> HTMLResponse:
     """Root endpoint with API information."""
     health_data = await health_check()
     models_data = await get_available_models()
     tasks_data = await get_available_tasks()
     graders_data = await get_grader_info()
 
-    return {
-        "endpoints": {
-            "POST /reset": "Reset environment and get initial observation",
-            "POST /step": "Execute action in environment",
-            "GET /state": "Get complete environment state",
-            "GET /tasks": "Get available task information",
-            "POST /grader": "Grade content using specified grader",
-            "POST /baseline": "Execute baseline agent",
-            "POST /counterfactual": "Evaluate counterfactual scenarios for actions",
-            "GET /models": "Get available models and installation status",
-            "GET /graders": "Get grader information",
-            "GET /leaderboard": "Get leaderboard entries",
-            "POST /submit_score": "Submit a score for an agent",
-            "GET /health": "Health check endpoint"
-        },
-        "health": health_data,
-        "models": models_data,
-        "tasks": tasks_data,
-        "graders": graders_data,
-        "timestamp": datetime.now().isoformat()
-    }
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>OpsPilot API</title>
+        <style>
+            body {{ font-family: Inter, system-ui, sans-serif; margin: 0; padding: 24px; background: #0b1220; color: #f8fafc; }}
+            h1 {{ margin-top: 0; }}
+            .card {{ background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; border-radius: 18px; padding: 24px; margin-bottom: 20px; }}
+            .grid {{ display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }}
+            a {{ color: #7dd3fc; text-decoration: none; }}
+            pre {{ white-space: pre-wrap; word-break: break-word; background: #020617; padding: 18px; border-radius: 14px; overflow-x: auto; max-height: 420px; }}
+            code {{ color: #cbd5e1; background: rgba(148, 163, 184, 0.12); padding: 2px 6px; border-radius: 6px; }}
+            .small {{ color: #94a3b8; font-size: 0.95rem; margin-top: 8px; }}
+        </style>
+    </head>
+    <body>
+        <h1>OpsPilot API</h1>
+        <p class="small">Live API status and metadata for your deployed OpsPilot service.</p>
+        <div class="grid">
+            <div class="card">
+                <h2>Available Endpoints</h2>
+                <ul>
+                    <li><strong>POST</strong> <code>/reset</code></li>
+                    <li><strong>POST</strong> <code>/step</code></li>
+                    <li><strong>GET</strong> <code>/state</code></li>
+                    <li><strong>GET</strong> <code>/tasks</code></li>
+                    <li><strong>POST</strong> <code>/grader</code></li>
+                    <li><strong>POST</strong> <code>/baseline</code></li>
+                    <li><strong>POST</strong> <code>/counterfactual</code></li>
+                    <li><strong>GET</strong> <code>/models</code></li>
+                    <li><strong>GET</strong> <code>/graders</code></li>
+                    <li><strong>GET</strong> <code>/leaderboard</code></li>
+                    <li><strong>POST</strong> <code>/submit_score</code></li>
+                    <li><strong>GET</strong> <code>/health</code></li>
+                </ul>
+            </div>
+            <div class="card">
+                <h2>Live Health Output</h2>
+                <pre>{json.dumps(health_data, indent=2)}</pre>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <h2>Live Models Output</h2>
+                <pre>{json.dumps(models_data, indent=2)}</pre>
+            </div>
+            <div class="card">
+                <h2>Tasks & Graders</h2>
+                <pre>{json.dumps({"tasks": tasks_data, "graders": graders_data}, indent=2)}</pre>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @app.get("/graders")
