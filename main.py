@@ -3,7 +3,6 @@
 import subprocess
 import sys
 import os
-import json
 from pathlib import Path
 
 # Ensure local project packages are importable when running in a container.
@@ -113,7 +112,6 @@ print("[OK] Dependencies ready\n")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
@@ -1026,86 +1024,35 @@ async def get_available_models() -> Dict[str, Any]:
 
 # Additional utility endpoints
 
-@app.get("/", response_class=HTMLResponse)
-async def root() -> HTMLResponse:
+@app.get("/")
+async def root() -> Dict[str, Any]:
     """Root endpoint with API information."""
     health_data = await health_check()
     models_data = await get_available_models()
     tasks_data = await get_available_tasks()
     graders_data = await get_grader_info()
 
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>OpsPilot API</title>
-        <style>
-            body {{ font-family: Inter, system-ui, sans-serif; margin: 0; padding: 32px; background: #0b1220; color: #f8fafc; }}
-            a {{ color: #7dd3fc; text-decoration: none; }}
-            h1 {{ margin-top: 0; }}
-            .card {{ background: rgba(15, 23, 42, 0.94); border: 1px solid #1e293b; border-radius: 16px; padding: 24px; margin-bottom: 20px; }}
-            .grid {{ display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
-            pre {{ white-space: pre-wrap; word-break: break-word; background: #020617; padding: 16px; border-radius: 12px; overflow-x: auto; }}
-            code {{ color: #cbd5e1; background: rgba(148, 163, 184, 0.12); padding: 2px 6px; border-radius: 6px; }}
-        </style>
-    </head>
-    <body>
-        <h1>OpsPilot API</h1>
-        <p>Production-grade OpsPilot environment with comprehensive grading and evaluation features.</p>
-        <div class="grid">
-            <div class="card">
-                <h2>Available Endpoints</h2>
-                <ul>
-                    <li><strong>POST</strong> <code>/reset</code></li>
-                    <li><strong>POST</strong> <code>/step</code></li>
-                    <li><strong>GET</strong> <code>/state</code></li>
-                    <li><strong>GET</strong> <code>/tasks</code></li>
-                    <li><strong>POST</strong> <code>/grader</code></li>
-                    <li><strong>POST</strong> <code>/baseline</code></li>
-                    <li><strong>POST</strong> <code>/counterfactual</code></li>
-                    <li><strong>GET</strong> <code>/models</code></li>
-                    <li><strong>GET</strong> <code>/graders</code></li>
-                    <li><strong>GET</strong> <code>/leaderboard</code></li>
-                    <li><strong>POST</strong> <code>/submit_score</code></li>
-                    <li><strong>GET</strong> <code>/health</code></li>
-                </ul>
-            </div>
-            <div class="card">
-                <h2>Features</h2>
-                <ul>
-                    <li>Counterfactual evaluation</li>
-                    <li>Multi-objective grading</li>
-                    <li>Baseline agent execution</li>
-                    <li>Health and model availability checks</li>
-                </ul>
-            </div>
-        </div>
-        <div class="card">
-            <h2>Documentation</h2>
-            <ul>
-                <li><a href="/docs">Swagger UI</a></li>
-                <li><a href="/redoc">ReDoc</a></li>
-                <li><a href="/openapi.json">OpenAPI JSON</a></li>
-            </ul>
-        </div>
-        <div class="card">
-            <h2>Live Health Output</h2>
-            <pre>{json.dumps(health_data, indent=2)}</pre>
-        </div>
-        <div class="card">
-            <h2>Live Models Output</h2>
-            <pre>{json.dumps(models_data, indent=2)}</pre>
-        </div>
-        <div class="card">
-            <h2>Tasks & Graders</h2>
-            <pre>{json.dumps({"tasks": tasks_data, "graders": graders_data}, indent=2)}</pre>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html)
+    return {
+        "endpoints": {
+            "POST /reset": "Reset environment and get initial observation",
+            "POST /step": "Execute action in environment",
+            "GET /state": "Get complete environment state",
+            "GET /tasks": "Get available task information",
+            "POST /grader": "Grade content using specified grader",
+            "POST /baseline": "Execute baseline agent",
+            "POST /counterfactual": "Evaluate counterfactual scenarios for actions",
+            "GET /models": "Get available models and installation status",
+            "GET /graders": "Get grader information",
+            "GET /leaderboard": "Get leaderboard entries",
+            "POST /submit_score": "Submit a score for an agent",
+            "GET /health": "Health check endpoint"
+        },
+        "health": health_data,
+        "models": models_data,
+        "tasks": tasks_data,
+        "graders": graders_data,
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 @app.get("/graders")
