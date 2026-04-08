@@ -10,8 +10,8 @@ import shutil
 
 # Configuration
 HF_USERNAME = "niahr"  # Your username
-SPACE_NAME = "Opspilot"  # Your space name
-HF_TOKEN = os.getenv("HF_TOKEN") or ""
+SPACE_NAME = "OOpspilot"  # Your space name
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN") or ""
 
 def print_header(text):
     print(f"\n{'='*60}")
@@ -71,7 +71,9 @@ def main():
     
     # Copy everything from parent directory
     print("  Copying all files...")
-    run_command("xcopy ..\\ . /E /I /Y /EXCLUDE:..\\exclude.txt", "Copy files")
+    if not run_command("xcopy ..\\ . /E /I /Y", "Copy files"):
+        print("  ❌ Failed to copy project files")
+        return False
     
     # Remove unnecessary directories
     print("  Cleaning up unnecessary files...")
@@ -88,6 +90,10 @@ def main():
     print("  ✅ All files copied and cleaned!")
     
     # Step 3: Configure git
+    if not HF_TOKEN:
+        print("  ❌ HF_TOKEN not found. Set it in your environment before running this script.")
+        return False
+    
     print_step(3, "Configure git")
     run_command('git config user.email "bot@huggingface.co"', "Set email")
     run_command('git config user.name "OpsPilot Bot"', "Set name")
