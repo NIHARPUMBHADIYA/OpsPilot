@@ -1,3 +1,12 @@
+---
+title: OpsPilot++
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: true
+---
+
 # OpsPilot++
 
 ## 🚀 AI Operations Benchmark System
