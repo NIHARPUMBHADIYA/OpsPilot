@@ -1,0 +1,12 @@
+title: OpsPilot++
+description: Production-Grade AI Operations Benchmark System
+sdk: docker
+app_file: main.py
+pinned: true
+tags:
+  - ai
+  - benchmark
+  - operations
+  - agents
+  - evaluation
+  - hackathon
