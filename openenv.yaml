@@ -1,0 +1,44 @@
+name: "OOpspilot"
+display_name: "OpsPilot"
+description: "AI Operations benchmark environment for hackathon evaluation."
+version: "1.0.0"
+author: "Nihar"
+license: "MIT"
+
+runtime:
+  type: docker
+  dockerfile: Dockerfile
+  context: .
+  env:
+    PORT: 7860
+  command:
+    - python
+    - main.py
+    - --port
+    - "7860"
+
+service:
+  type: web
+  port: 7860
+  healthcheck:
+    path: /health
+    method: GET
+
+api:
+  protocol: http
+  health_endpoint: /health
+  endpoints:
+    - path: /reset
+      method: POST
+    - path: /step
+      method: POST
+    - path: /state
+      method: GET
+    - path: /tasks
+      method: GET
+    - path: /grader
+      method: POST
+    - path: /baseline
+      method: POST
+    - path: /counterfactual
+      method: POST
