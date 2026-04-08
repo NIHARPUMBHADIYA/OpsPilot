@@ -42,16 +42,4 @@ export function useRealtimeData(autoRefresh = true, refreshInterval = 5000) {
     const interval = setInterval(fetchAllData, refreshInterval)
     return () => clearInterval(interval)
   }, [autoRefresh, refreshInterval])
-
-  return {
-    stats,
-    leaderboard,
-    health,
-    isLoading,
-    error,
-    refresh: fetchAllData,
-    setAutoRefresh: (value) => {
-      // This will be handled by the component
-    }
-  }
 }
