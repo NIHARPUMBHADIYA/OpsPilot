@@ -3,6 +3,12 @@
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+# Ensure local project packages are importable when running in a container.
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 # ── Fix Windows console encoding for emoji ──────────────────────────────────
 if sys.platform == "win32":
