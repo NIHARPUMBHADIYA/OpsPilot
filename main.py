@@ -270,10 +270,19 @@ async def reset_environment(
         # Reset and get initial observation
         observation = ops_env.reset(seed=random_seed)
         
+        # Convert observation to dict safely
+        if hasattr(observation, 'model_dump'):
+            obs_dict = observation.model_dump()
+        elif hasattr(observation, '__dict__'):
+            obs_dict = observation.__dict__
+        else:
+            obs_dict = {"raw": str(observation)}
+        
         return {
             "success": True,
             "message": "Environment reset successfully",
-            "observation": observation.model_dump(),
+            "session_id": f"session_{ops_env.episode_count}_{random_seed or 'auto'}",
+            "observation": obs_dict,
             "environment_config": {
                 "max_steps": max_steps,
                 "initial_emails": initial_emails,
@@ -286,14 +295,15 @@ async def reset_environment(
         }
         
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "Failed to reset environment",
-                "message": str(e),
-                "traceback": traceback.format_exc() if hasattr(app, 'debug') and app.debug else None
-            }
-        )
+        import traceback
+        print(f"Reset error: {str(e)}")
+        print(traceback.format_exc())
+        return {
+            "success": False,
+            "error": "Failed to reset environment",
+            "message": str(e),
+            "session_id": None
+        }
 
 
 @app.post("/step")
