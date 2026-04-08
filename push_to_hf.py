@@ -11,6 +11,7 @@ import shutil
 # Configuration
 HF_USERNAME = "niahr"  # Your username
 SPACE_NAME = "Opspilot"  # Your space name
+HF_TOKEN = os.getenv("HF_TOKEN") or ""
 
 def print_header(text):
     print(f"\n{'='*60}")
@@ -104,6 +105,7 @@ def main():
     
     # Step 6: Push
     print_step(6, "Push to Hugging Face")
+    run_command(f'git remote set-url origin https://{HF_USERNAME}:{HF_TOKEN}@huggingface.co/spaces/{HF_USERNAME}/{SPACE_NAME}', "Set remote with token")
     if not run_command("git push", "Push to Hugging Face"):
         print("  ⚠️  Push may have issues")
     else:
