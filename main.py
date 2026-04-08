@@ -1042,11 +1042,12 @@ async def root() -> HTMLResponse:
             .card {{ background: rgba(15, 23, 42, 0.94); border: 1px solid #1e293b; border-radius: 16px; padding: 24px; margin-bottom: 20px; }}
             .grid {{ display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
             pre {{ white-space: pre-wrap; word-break: break-word; background: #020617; padding: 16px; border-radius: 12px; overflow-x: auto; }}
+            code {{ color: #cbd5e1; background: rgba(148, 163, 184, 0.12); padding: 2px 6px; border-radius: 6px; }}
         </style>
     </head>
     <body>
         <h1>OpsPilot API</h1>
-        <p>Production-grade OpsPilot environment with comprehensive grading system.</p>
+        <p>Production-grade OpsPilot environment with comprehensive grading and evaluation features.</p>
         <div class="grid">
             <div class="card">
                 <h2>Available Endpoints</h2>
@@ -1058,6 +1059,10 @@ async def root() -> HTMLResponse:
                     <li><strong>POST</strong> <code>/grader</code></li>
                     <li><strong>POST</strong> <code>/baseline</code></li>
                     <li><strong>POST</strong> <code>/counterfactual</code></li>
+                    <li><strong>GET</strong> <code>/models</code></li>
+                    <li><strong>GET</strong> <code>/graders</code></li>
+                    <li><strong>GET</strong> <code>/leaderboard</code></li>
+                    <li><strong>POST</strong> <code>/submit_score</code></li>
                     <li><strong>GET</strong> <code>/health</code></li>
                 </ul>
             </div>
@@ -1066,10 +1071,18 @@ async def root() -> HTMLResponse:
                 <ul>
                     <li>Counterfactual evaluation</li>
                     <li>Multi-objective grading</li>
-                    <li>Baseline agent support</li>
-                    <li>Environment state tracking</li>
+                    <li>Baseline agent execution</li>
+                    <li>Health and model availability checks</li>
                 </ul>
             </div>
+        </div>
+        <div class="card">
+            <h2>Documentation</h2>
+            <ul>
+                <li><a href="/docs">Swagger UI</a></li>
+                <li><a href="/redoc">ReDoc</a></li>
+                <li><a href="/openapi.json">OpenAPI JSON</a></li>
+            </ul>
         </div>
         <div class="card">
             <h2>Quick Links</h2>
@@ -1080,13 +1093,13 @@ async def root() -> HTMLResponse:
             </ul>
         </div>
         <div class="card">
-            <h2>Raw API JSON</h2>
-            <pre>{{
+            <h2>Status</h2>
+            <pre>{
                 'name': 'OpsPilot API',
                 'version': '1.0.0',
                 'description': 'Production-grade OpsPilot environment with comprehensive grading system',
                 'timestamp': '{datetime.now().isoformat()}'
-            }}</pre>
+            }</pre>
         </div>
     </body>
     </html>
