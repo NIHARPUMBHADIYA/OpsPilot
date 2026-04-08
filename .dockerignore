@@ -1,93 +1,33 @@
-# Git
-.git
-.gitignore
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
+__pycache__
+*.pyc
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-.env
-.venv
 env/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
+.venv
+.git
+.gitignore
+.dockerignore
+Dockerfile
+.DS_Store
+*.log
+node_modules
+ui/node_modules
+ui/dist
+ui/build
+.env
+.env.local
+.env.*.local
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+htmlcov
+.idea
+.vscode
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Test files
-test_*.py
-*_test.py
-tests/
-
-# Documentation
-*.md
-docs/
-
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
-# Local data
-data/
-*.db
-*.sqlite
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
