@@ -11,7 +11,6 @@ import shutil
 # Configuration
 HF_USERNAME = "niahr"  # Your username
 SPACE_NAME = "OOpspilot"  # Your space name
-HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN") or ""
 
 def print_header(text):
     print(f"\n{'='*60}")
@@ -44,9 +43,32 @@ def remove_dir(path):
         if os.path.exists(path):
             shutil.rmtree(path)
             return True
-    except:
-        pass
+    except Exception as e:
+        print(f"  ⚠️  Could not remove {path}: {e}")
     return False
+
+
+def is_git_repo(path):
+    return os.path.isdir(os.path.join(path, ".git"))
+
+
+def copy_project_files(source_dir, dest_dir, exclude_names=None):
+    if exclude_names is None:
+        exclude_names = []
+
+    for item in os.listdir(source_dir):
+        if item in exclude_names:
+            continue
+
+        src = os.path.join(source_dir, item)
+        dst = os.path.join(dest_dir, item)
+
+        if os.path.isdir(src):
+            shutil.copytree(src, dst, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns('.git', '__pycache__', '*.pyc', '.DS_Store', '.env', 'env'))
+        else:
+            shutil.copy2(src, dst)
+
 
 def main():
     print_header("🚀 Pushing OpsPilot++ to Hugging Face Space")
@@ -54,33 +76,41 @@ def main():
     space_url = f"https://huggingface.co/spaces/{HF_USERNAME}/{SPACE_NAME}"
     space_dir = f"{SPACE_NAME}_hf"
     
-    # Step 1: Clone space
-    print_step(1, "Clone your Hugging Face Space")
-    if os.path.exists(space_dir):
-        print(f"  Removing existing directory: {space_dir}")
-        remove_dir(space_dir)
+    # Step 1: Clone or reuse existing space clone
+    print_step(1, "Prepare local Hugging Face Space clone")
+    if os.path.exists(space_dir) and is_git_repo(space_dir):
+        print(f"  ✅ Using existing local clone: {space_dir}")
+        os.chdir(space_dir)
+        run_command("git fetch --all", "Fetch latest from remote")
+        run_command("git reset --hard origin/main", "Reset to latest remote state")
+        os.chdir("..")
+    else:
+        if os.path.exists(space_dir):
+            print(f"  Removing existing directory: {space_dir}")
+            remove_dir(space_dir)
+        if not run_command(f'git clone "{space_url}" "{space_dir}"', f"Clone {space_url}"):
+            print("  ❌ Failed to clone space")
+            return False
+        print(f"  ✅ Space cloned to {space_dir}!")
     
-    if not run_command(f'git clone "{space_url}" "{space_dir}"', f"Clone {space_url}"):
-        print("  ❌ Failed to clone space")
-        return False
-    print(f"  ✅ Space cloned to {space_dir}!")
-    
-    # Step 2: Copy all project files
+    # Step 2: Copy all project files to space
     print_step(2, "Copy all project files to space")
-    os.chdir(space_dir)
-    
-    # Copy everything from parent directory
     print("  Copying all files...")
-    if not run_command("xcopy ..\\ . /E /I /Y", "Copy files"):
-        print("  ❌ Failed to copy project files")
+
+    root_dir = os.path.abspath(os.path.join(space_dir, ".."))
+    exclude_dirs = [space_dir, "OOpspilot_hf", "Opspilot_hf", "env", ".git"]
+    try:
+        copy_project_files(root_dir, space_dir, exclude_dirs)
+    except Exception as e:
+        print(f"  ⚠️  Failed to copy project files: {e}")
         return False
-    
+
+    os.chdir(space_dir)
+
     # Remove unnecessary directories
     print("  Cleaning up unnecessary files...")
     remove_dir("node_modules")
-    remove_dir(".git")
     remove_dir("__pycache__")
-    remove_dir("env")
     remove_dir("Opspilot_hf")
     
     # Remove unnecessary files
