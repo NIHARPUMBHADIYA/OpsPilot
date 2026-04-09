@@ -11,6 +11,8 @@ runtime:
   context: .
   env:
     PORT: 7860
+    API_BASE_URL: ""
+    API_KEY: ""
   command:
     - python
     - main.py

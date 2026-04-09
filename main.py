@@ -3,6 +3,7 @@
 import subprocess
 import sys
 import os
+import requests
 from pathlib import Path
 
 # Ensure local project packages are importable when running in a container.
@@ -557,23 +558,31 @@ async def grade_content(
 
 @app.post("/baseline")
 async def execute_baseline_agent(
+    provider: str = "baseline",
+    model: str = "gpt-4o-mini",
+    api_key: Optional[str] = None,
+    custom_base_url: Optional[str] = None,
     observation: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Execute the baseline agent to get an action recommendation.
-    
+    Execute the baseline agent or an external provider to get an action recommendation.
+
     Args:
-        observation: Current observation (optional, will use environment if not provided)
-        context: Additional context for the agent
-        
+        provider: Which agent provider to use (baseline, openai, custom, etc.)
+        model: Model name for external providers.
+        api_key: Optional API key for provider authentication.
+        custom_base_url: Optional custom OpenAI-compatible base URL.
+        observation: Current observation (optional, will use environment if not provided).
+        context: Additional context for the agent.
+
     Returns:
-        JSON response with agent action and reasoning
+        JSON response with agent action and reasoning.
     """
     global ops_env
-    
+
     try:
-        # Get observation from environment if not provided
+        # Determine the observation to use
         if observation is None:
             if ops_env is None:
                 raise HTTPException(
@@ -583,44 +592,75 @@ async def execute_baseline_agent(
                         "message": "Either provide an observation or call /reset first"
                     }
                 )
-            
-            # Get current observation from environment
             current_obs = ops_env.state_manager.get_current_observation()
             observation = current_obs.model_dump()
-        
-        # Execute baseline agent
-        action_result = baseline_agent.execute_action("generate_action", {
-            "observation": observation,
-            "context": context or {}
-        })
-        
-        # Extract the actual action from the result
-        actual_action = action_result.get("result", {})
-        if not actual_action:
-            actual_action = {
-                "email_actions": [],
-                "task_priorities": [],
-                "scheduling": [],
-                "skip_ids": []
+
+        if provider == "baseline":
+            action_result = baseline_agent.execute_action("generate_action", {
+                "observation": observation,
+                "context": context or {}
+            })
+            actual_action = action_result.get("result", {})
+            if not actual_action:
+                actual_action = {
+                    "email_actions": [],
+                    "task_priorities": [],
+                    "scheduling": [],
+                    "skip_ids": []
+                }
+
+            return {
+                "success": True,
+                "agent_type": "baseline",
+                "provider": "baseline",
+                "model": "baseline",
+                "action": actual_action,
+                "reasoning": action_result.get("reasoning", ""),
+                "confidence": action_result.get("confidence", 0.5),
+                "execution_time": action_result.get("execution_time", 0.0),
+                "timestamp": datetime.now().isoformat()
             }
-        
+
+        from agents.providers import get_agent
+
+        effective_api_key = api_key or os.getenv("API_KEY", "").strip()
+        effective_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
+        agent_response = get_agent(
+            provider,
+            model,
+            effective_api_key,
+            observation,
+            effective_base_url or ""
+        )
+
+        if not agent_response.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "External agent execution failed",
+                    "message": agent_response.get("error", "Unknown error"),
+                    "provider": provider,
+                    "model": model
+                }
+            )
+
         return {
             "success": True,
-            "agent_type": "baseline",
-            "action": actual_action,
-            "reasoning": action_result.get("reasoning", ""),
-            "confidence": action_result.get("confidence", 0.5),
-            "execution_time": action_result.get("execution_time", 0.0),
+            "agent_type": provider,
+            "provider": agent_response.get("provider", provider),
+            "model": agent_response.get("model", model),
+            "action": agent_response.get("action", {}),
+            "raw_response": agent_response.get("raw_response", ""),
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail={
-                "error": "Baseline agent execution failed",
+                "error": "Agent execution failed",
                 "message": str(e),
                 "traceback": traceback.format_exc() if hasattr(app, 'debug') and app.debug else None
             }
