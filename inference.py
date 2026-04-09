@@ -54,19 +54,19 @@ def print_structured_output(
 ) -> None:
     """Print results in the validator-required format."""
     # Print START block
-    print(f"[START]task={task} difficulty={difficulty} model={model}", flush=True)
+    print(f"[START] task={task} difficulty={difficulty} model={model}", flush=True)
     
     # Print STEP blocks
     for result in results:
         reward = result.get("reward", 0.0)
         step_num = result.get("step", 0)
-        print(f"[STEP]step={step_num} reward={reward}", flush=True)
+        print(f"[STEP] step={step_num} reward={reward}", flush=True)
     
     # Print END block with final score
     final_score = results[-1]["reward"] if results else 0.0
     num_steps = len(results)
     print(
-        f"[END]task={task} score={final_score} steps={num_steps}",
+        f"[END] task={task} score={final_score} steps={num_steps}",
         flush=True
     )
 
