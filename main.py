@@ -111,7 +111,7 @@ def find_npm():
 print("[OK] Dependencies ready\n")
 # ─────────────────────────────────────────────────────────────────────────────
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
@@ -213,6 +213,21 @@ graders = {
 }
 
 baseline_agent = BaselineAgent()
+
+
+def _llm_proxy_configured() -> bool:
+    """Return True when the hackathon LiteLLM proxy env vars are available."""
+    return bool(os.getenv("API_BASE_URL", "").strip() and os.getenv("API_KEY", "").strip())
+
+
+def _default_proxy_model() -> str:
+    """Pick a reasonable default model for the injected OpenAI-compatible proxy."""
+    return (
+        os.getenv("OPENAI_MODEL", "").strip()
+        or os.getenv("MODEL", "").strip()
+        or os.getenv("LLM_MODEL", "").strip()
+        or "gpt-4o-mini"
+    )
 
 
 @asynccontextmanager
@@ -558,8 +573,9 @@ async def grade_content(
 
 @app.post("/baseline")
 async def execute_baseline_agent(
-    provider: str = "baseline",
-    model: str = "gpt-4o-mini",
+    request: Request,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
     api_key: Optional[str] = None,
     custom_base_url: Optional[str] = None,
     observation: Optional[Dict[str, Any]] = None,
@@ -582,6 +598,16 @@ async def execute_baseline_agent(
     global ops_env
 
     try:
+        proxy_enabled = _llm_proxy_configured()
+        provider_was_explicit = "provider" in request.query_params
+        effective_provider = (provider or "").strip() or ("openai" if proxy_enabled else "baseline")
+        if proxy_enabled and not provider_was_explicit and effective_provider == "baseline":
+            effective_provider = "openai"
+
+        effective_model = (model or "").strip() or _default_proxy_model()
+        if effective_provider == "baseline":
+            effective_model = "baseline"
+
         # Determine the observation to use
         if observation is None:
             if ops_env is None:
@@ -595,7 +621,7 @@ async def execute_baseline_agent(
             current_obs = ops_env.state_manager.get_current_observation()
             observation = current_obs.model_dump()
 
-        if provider == "baseline":
+        if effective_provider == "baseline":
             action_result = baseline_agent.execute_action("generate_action", {
                 "observation": observation,
                 "context": context or {}
@@ -626,8 +652,8 @@ async def execute_baseline_agent(
         effective_api_key = api_key or os.getenv("API_KEY", "").strip()
         effective_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
         agent_response = get_agent(
-            provider,
-            model,
+            effective_provider,
+            effective_model,
             effective_api_key,
             observation,
             effective_base_url or ""
@@ -639,16 +665,16 @@ async def execute_baseline_agent(
                 detail={
                     "error": "External agent execution failed",
                     "message": agent_response.get("error", "Unknown error"),
-                    "provider": provider,
-                    "model": model
+                    "provider": effective_provider,
+                    "model": effective_model
                 }
             )
 
         return {
             "success": True,
-            "agent_type": provider,
-            "provider": agent_response.get("provider", provider),
-            "model": agent_response.get("model", model),
+            "agent_type": effective_provider,
+            "provider": agent_response.get("provider", effective_provider),
+            "model": agent_response.get("model", effective_model),
             "action": agent_response.get("action", {}),
             "raw_response": agent_response.get("raw_response", ""),
             "timestamp": datetime.now().isoformat()

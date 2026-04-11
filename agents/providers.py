@@ -164,6 +164,29 @@ def _resolve_provider_settings(
     return effective_base_url, effective_api_key
 
 
+def _use_injected_proxy(provider: str, base_url: Optional[str], api_key: str) -> bool:
+    """Route compatible providers through the injected LiteLLM proxy when present."""
+    env_base_url = os.getenv("API_BASE_URL", "").strip()
+    env_api_key = os.getenv("API_KEY", "").strip()
+    proxy_compatible = {
+        "openai",
+        "anthropic",
+        "google",
+        "cohere",
+        "mistral",
+        "groq",
+        "together",
+        "custom",
+    }
+
+    return (
+        provider in proxy_compatible
+        and bool(env_base_url and env_api_key)
+        and (base_url or "").strip() == env_base_url
+        and api_key == env_api_key
+    )
+
+
 # ---------------------------------------------------------------------------
 # Shared prompt builder
 # ---------------------------------------------------------------------------
@@ -512,34 +535,45 @@ def get_agent(
                 raise ValueError("OpenAI API key required")
             raw = _call_openai_compatible(base_url, effective_key, model, prompt)
         elif provider == "anthropic":
-            _, effective_key = _resolve_provider_settings(
+            base_url, effective_key = _resolve_provider_settings(
                 provider, api_key, custom_base_url
             )
             if not effective_key:
                 raise ValueError("Anthropic API key required")
-            raw = _call_anthropic(effective_key, model, prompt)
+            if _use_injected_proxy(provider, base_url, effective_key):
+                raw = _call_openai_compatible(base_url, effective_key, model, prompt)
+            else:
+                raw = _call_anthropic(effective_key, model, prompt)
         elif provider == "google":
-            _, effective_key = _resolve_provider_settings(
+            base_url, effective_key = _resolve_provider_settings(
                 provider, api_key, custom_base_url
             )
             if not effective_key:
                 raise ValueError("Google API key required")
-            raw = _call_google(effective_key, model, prompt)
+            if _use_injected_proxy(provider, base_url, effective_key):
+                raw = _call_openai_compatible(base_url, effective_key, model, prompt)
+            else:
+                raw = _call_google(effective_key, model, prompt)
         elif provider == "cohere":
-            _, effective_key = _resolve_provider_settings(
+            base_url, effective_key = _resolve_provider_settings(
                 provider, api_key, custom_base_url
             )
             if not effective_key:
                 raise ValueError("Cohere API key required")
-            raw = _call_cohere(effective_key, model, prompt)
+            if _use_injected_proxy(provider, base_url, effective_key):
+                raw = _call_openai_compatible(base_url, effective_key, model, prompt)
+            else:
+                raw = _call_cohere(effective_key, model, prompt)
         elif provider in ("mistral", "groq", "together"):
-            _, effective_key = _resolve_provider_settings(
+            base_url, effective_key = _resolve_provider_settings(
                 provider, api_key, custom_base_url
             )
             if not effective_key:
                 raise ValueError(f"{provider.title()} API key required")
-            base_url = PROVIDERS[provider]["base_url"]
-            raw = _call_openai_compatible(base_url, effective_key, model, prompt)
+            if _use_injected_proxy(provider, base_url, effective_key):
+                raw = _call_openai_compatible(base_url, effective_key, model, prompt)
+            else:
+                raw = _call_openai_compatible(PROVIDERS[provider]["base_url"], effective_key, model, prompt)
         elif provider == "custom":
             base_url, effective_key = _resolve_provider_settings(
                 provider, api_key, custom_base_url
