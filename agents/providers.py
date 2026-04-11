@@ -1,4 +1,3 @@
-
 """
 Universal AI provider system for OpsPilot++ benchmarking.
 Supports any AI model — from tiny local models to massive frontier models.
@@ -107,14 +106,23 @@ PROVIDERS = {
     "ollama": {
         "label": "Ollama (Local)",
         "models": [
-            "llama3.2", "llama3.1", "llama3",
-            "mistral", "mixtral",
-            "gemma2", "gemma",
-            "phi3", "phi",
-            "qwen2.5", "qwen2",
-            "deepseek-r1", "deepseek-coder",
-            "codellama", "vicuna",
-            "neural-chat", "starling-lm",
+            "llama3.2",
+            "llama3.1",
+            "llama3",
+            "mistral",
+            "mixtral",
+            "gemma2",
+            "gemma",
+            "phi3",
+            "phi",
+            "qwen2.5",
+            "qwen2",
+            "deepseek-r1",
+            "deepseek-coder",
+            "codellama",
+            "vicuna",
+            "neural-chat",
+            "starling-lm",
             "tinyllama",
         ],
         "needs_key": False,
@@ -123,9 +131,9 @@ PROVIDERS = {
     # ── Custom / Any OpenAI-compatible endpoint ───────────────────────────────
     "custom": {
         "label": "Custom Endpoint (OpenAI-compatible)",
-        "models": [],          # user types the model name
-        "needs_key": False,    # optional
-        "base_url": None,      # user provides URL
+        "models": [],  # user types the model name
+        "needs_key": False,  # optional
+        "base_url": None,  # user provides URL
     },
     # ── Baseline (local rule-based) ───────────────────────────────────────────
     "baseline": {
@@ -137,12 +145,18 @@ PROVIDERS = {
 }
 
 
-def _resolve_provider_settings(provider: str, api_key: str, custom_base_url: str) -> tuple[Optional[str], str]:
+def _resolve_provider_settings(
+    provider: str, api_key: str, custom_base_url: str
+) -> tuple[Optional[str], str]:
     """Resolve API endpoint and key using injected environment variables."""
     env_base_url = os.getenv("API_BASE_URL", "").strip()
     env_api_key = os.getenv("API_KEY", "").strip()
     effective_api_key = api_key or env_api_key or ""
-    effective_base_url = custom_base_url.strip() or env_base_url or PROVIDERS.get(provider, {}).get("base_url")
+    effective_base_url = (
+        custom_base_url.strip()
+        or env_base_url
+        or PROVIDERS.get(provider, {}).get("base_url")
+    )
 
     if provider == "custom" and not effective_base_url:
         effective_base_url = env_base_url
@@ -157,11 +171,13 @@ def build_prompt(observation: Dict[str, Any]) -> str:
     """Build ultra-minimal prompt - ~30 tokens only."""
     emails = observation.get("emails", [])
     tasks = observation.get("tasks", [])
-    
+
     # Absolute minimum - just IDs and urgency
-    e_str = ",".join([f"{e.get('id','?')}:{e.get('urgency',0)}" for e in emails[:1]])
-    t_str = ",".join([f"{t.get('task_id','?')}:{t.get('deadline',0)}" for t in tasks[:1]])
-    
+    e_str = ",".join([f"{e.get('id', '?')}:{e.get('urgency', 0)}" for e in emails[:1]])
+    t_str = ",".join(
+        [f"{t.get('task_id', '?')}:{t.get('deadline', 0)}" for t in tasks[:1]]
+    )
+
     return f"""E:{e_str} T:{t_str}
 {{"email_actions":[{{"email_id":"e1","action_type":"respond","priority":5,"response_content":"OK"}}],"task_priorities":[{{"task_id":"t1","priority_level":5,"reasoning":"std"}}],"scheduling":[],"skip_ids":[]}}"""
 
@@ -170,7 +186,10 @@ def build_prompt(observation: Dict[str, Any]) -> str:
 # Individual provider callers
 # ---------------------------------------------------------------------------
 
-def _call_openai_compatible(base_url: Optional[str], api_key: str, model: str, prompt: str) -> str:
+
+def _call_openai_compatible(
+    base_url: Optional[str], api_key: str, model: str, prompt: str
+) -> str:
     """Generic caller for any OpenAI-compatible API (OpenAI, Groq, Together, Mistral, Ollama, custom)."""
     try:
         from openai import OpenAI
@@ -184,12 +203,38 @@ def _call_openai_compatible(base_url: Optional[str], api_key: str, model: str, p
         kwargs["base_url"] = base_url
 
     client = OpenAI(**kwargs)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=2000,
-    )
+
+    vision_models = [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4-turbo",
+        "gpt-4-vision",
+        "gpt-4-32k",
+    ]
+
+    messages = [{"role": "user", "content": prompt}]
+
+    if model in vision_models:
+        messages[0]["content"] = [{"type": "text", "text": prompt}]
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2000,
+        )
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "image" in error_msg and "does not support" in error_msg:
+            messages = [{"role": "user", "content": prompt}]
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2000,
+            )
+
     return response.choices[0].message.content.strip()
 
 
@@ -197,7 +242,9 @@ def _call_anthropic(api_key: str, model: str, prompt: str) -> str:
     try:
         import anthropic
     except ImportError:
-        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
+        raise RuntimeError(
+            "anthropic package not installed. Run: pip install anthropic"
+        )
 
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
@@ -212,7 +259,9 @@ def _call_google(api_key: str, model: str, prompt: str) -> str:
     try:
         import google.generativeai as genai
     except ImportError:
-        raise RuntimeError("google-generativeai package not installed. Run: pip install google-generativeai")
+        raise RuntimeError(
+            "google-generativeai package not installed. Run: pip install google-generativeai"
+        )
 
     genai.configure(api_key=api_key)
     m = genai.GenerativeModel(model)
@@ -235,6 +284,7 @@ def _call_cohere(api_key: str, model: str, prompt: str) -> str:
 # Main dispatcher
 # ---------------------------------------------------------------------------
 
+
 def _validate_action(action: Dict[str, Any]) -> tuple[bool, str]:
     """Validate action format and fix common issues."""
     try:
@@ -247,7 +297,7 @@ def _validate_action(action: Dict[str, Any]) -> tuple[bool, str]:
             action["scheduling"] = []
         if "skip_ids" not in action:
             action["skip_ids"] = []
-        
+
         # Validate email_actions
         for ea in action.get("email_actions", []):
             if "action_type" not in ea:
@@ -258,26 +308,34 @@ def _validate_action(action: Dict[str, Any]) -> tuple[bool, str]:
                 ea["priority"] = 5
             else:
                 try:
-                    ea["priority"] = int(ea["priority"]) if isinstance(ea["priority"], str) else ea["priority"]
+                    ea["priority"] = (
+                        int(ea["priority"])
+                        if isinstance(ea["priority"], str)
+                        else ea["priority"]
+                    )
                     ea["priority"] = max(1, min(10, ea["priority"]))
                 except (ValueError, TypeError):
                     ea["priority"] = 5
             if "response_content" not in ea:
                 ea["response_content"] = "Thank you for your message."
-        
+
         # Validate task_priorities
         for tp in action.get("task_priorities", []):
             if "priority_level" not in tp:
                 tp["priority_level"] = 5
             else:
                 try:
-                    tp["priority_level"] = int(tp["priority_level"]) if isinstance(tp["priority_level"], str) else tp["priority_level"]
+                    tp["priority_level"] = (
+                        int(tp["priority_level"])
+                        if isinstance(tp["priority_level"], str)
+                        else tp["priority_level"]
+                    )
                     tp["priority_level"] = max(1, min(10, tp["priority_level"]))
                 except (ValueError, TypeError):
                     tp["priority_level"] = 5
             if "reasoning" not in tp:
                 tp["reasoning"] = "Standard priority"
-        
+
         # Validate scheduling
         for sched in action.get("scheduling", []):
             if "scheduled_time" not in sched:
@@ -294,7 +352,7 @@ def _validate_action(action: Dict[str, Any]) -> tuple[bool, str]:
                     sched["duration"] = int(sched["duration"])
                 except (ValueError, TypeError):
                     sched["duration"] = 30
-        
+
         return True, ""
     except Exception as e:
         return False, str(e)
@@ -310,65 +368,114 @@ def get_agent(
     """
     Optimized agent call with aggressive caching and fallbacks.
     Priority: Cache > Ollama (FREE) > Baseline (FREE) > API (if key provided)
-    
+
     Users without premium API keys can use Ollama or Baseline for FREE!
     """
     api_key = api_key or os.getenv("API_KEY", "").strip()
     custom_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
-    cache_key = hashlib.md5(json.dumps(observation, sort_keys=True).encode()).hexdigest()
-    
+    cache_key = hashlib.md5(
+        json.dumps(observation, sort_keys=True).encode()
+    ).hexdigest()
+
     # 1. CHECK CACHE FIRST (instant response, no API call)
     if cache_key in _RESPONSE_CACHE:
         cached_response, cache_time = _RESPONSE_CACHE[cache_key]
         if time.time() - cache_time < _CACHE_TTL:
             try:
                 action = json.loads(cached_response)
-                return {"success": True, "action": action, "raw_response": cached_response, 
-                        "provider": "cache", "model": "cached", "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": cached_response,
+                    "provider": "cache",
+                    "model": "cached",
+                    "error": None,
+                }
             except:
                 pass
-    
+
     # 2. TRY OLLAMA FIRST (FREE, local, no API key needed)
     # Only skip if user explicitly selected a different provider
-    if provider not in ("baseline", "openai", "anthropic", "google", "mistral", "cohere", "groq", "together", "custom"):
+    if provider not in (
+        "baseline",
+        "openai",
+        "anthropic",
+        "google",
+        "mistral",
+        "cohere",
+        "groq",
+        "together",
+        "custom",
+    ):
         try:
             from agents.ollama_agent import OllamaAgent, check_ollama_available
+
             if check_ollama_available():
                 try:
                     agent = OllamaAgent()
-                    result = agent.execute_action("generate_action", {"observation": observation})
+                    result = agent.execute_action(
+                        "generate_action", {"observation": observation}
+                    )
                     if result and result.get("success") and "result" in result:
                         action = result["result"]
                         _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                        return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                                "provider": "ollama", "model": agent.model, "error": None}
+                        return {
+                            "success": True,
+                            "action": action,
+                            "raw_response": json.dumps(action),
+                            "provider": "ollama",
+                            "model": agent.model,
+                            "error": None,
+                        }
                 except:
                     pass  # Fall through to baseline
         except:
             pass  # Ollama module not available
-    
+
     # 3. USE BASELINE AGENT (FREE, always works, no API key needed)
     # Use if: provider is "baseline" OR no API key provided AND not explicitly requesting API
-    if provider == "baseline" or (not api_key and provider not in ("openai", "anthropic", "google", "mistral", "cohere", "groq", "together", "custom")):
+    if provider == "baseline" or (
+        not api_key
+        and provider
+        not in (
+            "openai",
+            "anthropic",
+            "google",
+            "mistral",
+            "cohere",
+            "groq",
+            "together",
+            "custom",
+        )
+    ):
         try:
             from baseline.agent import BaselineAgent
+
             agent = BaselineAgent()
-            result = agent.execute_action("generate_action", {"observation": observation})
+            result = agent.execute_action(
+                "generate_action", {"observation": observation}
+            )
             if result and "action" in result:
                 action = result["action"]
                 _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                        "provider": "baseline", "model": "baseline", "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": json.dumps(action),
+                    "provider": "baseline",
+                    "model": "baseline",
+                    "error": None,
+                }
         except Exception as e:
             pass  # Fall through to API if baseline fails
-    
+
     # 4. RATE LIMITING (before API calls)
     if provider in _LAST_REQUEST_TIME:
         elapsed = time.time() - _LAST_REQUEST_TIME[provider]
         if elapsed < _MIN_REQUEST_INTERVAL:
             time.sleep(_MIN_REQUEST_INTERVAL - elapsed)
     _LAST_REQUEST_TIME[provider] = time.time()
-    
+
     # 5. CALL API (only if user explicitly provided API key and requested specific provider)
     prompt = build_prompt(observation)
     raw = ""
@@ -379,46 +486,69 @@ def get_agent(
         elif provider == "ollama":
             # Explicit Ollama request
             from agents.ollama_agent import OllamaAgent
+
             agent = OllamaAgent(model)
-            result = agent.execute_action("generate_action", {"observation": observation})
+            result = agent.execute_action(
+                "generate_action", {"observation": observation}
+            )
             if result and result.get("success"):
                 action = result["result"]
                 _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                        "provider": "ollama", "model": model, "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": json.dumps(action),
+                    "provider": "ollama",
+                    "model": model,
+                    "error": None,
+                }
             else:
                 raise ValueError(result.get("error", "Ollama failed"))
         elif provider == "openai":
-            base_url, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            base_url, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not effective_key:
                 raise ValueError("OpenAI API key required")
             raw = _call_openai_compatible(base_url, effective_key, model, prompt)
         elif provider == "anthropic":
-            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            _, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not effective_key:
                 raise ValueError("Anthropic API key required")
             raw = _call_anthropic(effective_key, model, prompt)
         elif provider == "google":
-            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            _, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not effective_key:
                 raise ValueError("Google API key required")
             raw = _call_google(effective_key, model, prompt)
         elif provider == "cohere":
-            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            _, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not effective_key:
                 raise ValueError("Cohere API key required")
             raw = _call_cohere(effective_key, model, prompt)
         elif provider in ("mistral", "groq", "together"):
-            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            _, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not effective_key:
                 raise ValueError(f"{provider.title()} API key required")
             base_url = PROVIDERS[provider]["base_url"]
             raw = _call_openai_compatible(base_url, effective_key, model, prompt)
         elif provider == "custom":
-            base_url, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            base_url, effective_key = _resolve_provider_settings(
+                provider, api_key, custom_base_url
+            )
             if not base_url:
                 raise ValueError("Custom provider requires base URL")
-            raw = _call_openai_compatible(base_url.rstrip("/"), effective_key or "custom", model, prompt)
+            raw = _call_openai_compatible(
+                base_url.rstrip("/"), effective_key or "custom", model, prompt
+            )
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -432,100 +562,175 @@ def get_agent(
 
         action = json.loads(clean)
         is_valid, _ = _validate_action(action)
-        
+
         if is_valid:
             _RESPONSE_CACHE[cache_key] = (clean, time.time())
-            return {"success": True, "action": action, "raw_response": raw, 
-                    "provider": provider, "model": model, "error": None}
+            return {
+                "success": True,
+                "action": action,
+                "raw_response": raw,
+                "provider": provider,
+                "model": model,
+                "error": None,
+            }
         else:
             # Validation failed - try Ollama, then baseline
             try:
                 from agents.ollama_agent import OllamaAgent, check_ollama_available
+
                 if check_ollama_available():
                     try:
                         agent = OllamaAgent()
-                        result = agent.execute_action("generate_action", {"observation": observation})
+                        result = agent.execute_action(
+                            "generate_action", {"observation": observation}
+                        )
                         if result and result.get("success") and "result" in result:
                             action = result["result"]
-                            _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                            return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                                    "provider": "ollama", "model": agent.model, "error": None}
+                            _RESPONSE_CACHE[cache_key] = (
+                                json.dumps(action),
+                                time.time(),
+                            )
+                            return {
+                                "success": True,
+                                "action": action,
+                                "raw_response": json.dumps(action),
+                                "provider": "ollama",
+                                "model": agent.model,
+                                "error": None,
+                            }
                     except:
                         pass
             except:
                 pass
-            
+
             # Fallback to baseline
             from baseline.agent import BaselineAgent
+
             agent = BaselineAgent()
-            result = agent.execute_action("generate_action", {"observation": observation})
+            result = agent.execute_action(
+                "generate_action", {"observation": observation}
+            )
             if result and "action" in result:
                 action = result["action"]
                 _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                        "provider": "baseline", "model": "baseline", "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": json.dumps(action),
+                    "provider": "baseline",
+                    "model": "baseline",
+                    "error": None,
+                }
 
     except json.JSONDecodeError as e:
         # JSON parse failed - try Ollama, then baseline
         try:
             from agents.ollama_agent import OllamaAgent, check_ollama_available
+
             if check_ollama_available():
                 try:
                     agent = OllamaAgent()
-                    result = agent.execute_action("generate_action", {"observation": observation})
+                    result = agent.execute_action(
+                        "generate_action", {"observation": observation}
+                    )
                     if result and result.get("success") and "result" in result:
                         action = result["result"]
                         _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                        return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                                "provider": "ollama", "model": agent.model, "error": None}
+                        return {
+                            "success": True,
+                            "action": action,
+                            "raw_response": json.dumps(action),
+                            "provider": "ollama",
+                            "model": agent.model,
+                            "error": None,
+                        }
                 except:
                     pass
         except:
             pass
-        
+
         # Fallback to baseline
         try:
             from baseline.agent import BaselineAgent
+
             agent = BaselineAgent()
-            result = agent.execute_action("generate_action", {"observation": observation})
+            result = agent.execute_action(
+                "generate_action", {"observation": observation}
+            )
             if result and "action" in result:
                 action = result["action"]
                 _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                        "provider": "baseline", "model": "baseline", "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": json.dumps(action),
+                    "provider": "baseline",
+                    "model": "baseline",
+                    "error": None,
+                }
         except:
             pass
-        return {"success": False, "action": {}, "raw_response": raw, "provider": provider, 
-                "model": model, "error": f"JSON parse failed: {str(e)[:100]}"}
+        return {
+            "success": False,
+            "action": {},
+            "raw_response": raw,
+            "provider": provider,
+            "model": model,
+            "error": f"JSON parse failed: {str(e)[:100]}",
+        }
     except Exception as e:
         # API call failed - try Ollama, then baseline
         try:
             from agents.ollama_agent import OllamaAgent, check_ollama_available
+
             if check_ollama_available():
                 try:
                     agent = OllamaAgent()
-                    result = agent.execute_action("generate_action", {"observation": observation})
+                    result = agent.execute_action(
+                        "generate_action", {"observation": observation}
+                    )
                     if result and result.get("success") and "result" in result:
                         action = result["result"]
                         _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                        return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                                "provider": "ollama", "model": agent.model, "error": None}
+                        return {
+                            "success": True,
+                            "action": action,
+                            "raw_response": json.dumps(action),
+                            "provider": "ollama",
+                            "model": agent.model,
+                            "error": None,
+                        }
                 except:
                     pass
         except:
             pass
-        
+
         # Fallback to baseline
         try:
             from baseline.agent import BaselineAgent
+
             agent = BaselineAgent()
-            result = agent.execute_action("generate_action", {"observation": observation})
+            result = agent.execute_action(
+                "generate_action", {"observation": observation}
+            )
             if result and "action" in result:
                 action = result["action"]
                 _RESPONSE_CACHE[cache_key] = (json.dumps(action), time.time())
-                return {"success": True, "action": action, "raw_response": json.dumps(action), 
-                        "provider": "baseline", "model": "baseline", "error": None}
+                return {
+                    "success": True,
+                    "action": action,
+                    "raw_response": json.dumps(action),
+                    "provider": "baseline",
+                    "model": "baseline",
+                    "error": None,
+                }
         except:
             pass
-        return {"success": False, "action": {}, "raw_response": raw, "provider": provider, 
-                "model": model, "error": str(e)[:100]}
+        return {
+            "success": False,
+            "action": {},
+            "raw_response": raw,
+            "provider": provider,
+            "model": model,
+            "error": str(e)[:100],
+        }
