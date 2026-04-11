@@ -11,7 +11,6 @@ import shutil
 # Configuration
 HF_USERNAME = "niahr"  # Your username
 SPACE_NAME = "OOpspilot"  # Your space name
-HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN") or ""
 
 def print_header(text):
     print(f"\n{'='*60}")

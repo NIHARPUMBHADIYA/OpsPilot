@@ -1,14 +1,8 @@
 import React from 'react'
-import { Menu, Zap, AlertCircle, ArrowLeft } from 'lucide-react'
+import { Menu, Zap, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function Navbar({ onMenuClick, apiConnected, currentPage, onNavigate }) {
-  const pageNames = {
-    dashboard: 'Dashboard',
-    benchmark: 'Benchmark',
-    leaderboard: 'Leaderboard',
-    documentation: 'Documentation'
-  }
 
   const handleBack = () => {
     // Navigate to dashboard

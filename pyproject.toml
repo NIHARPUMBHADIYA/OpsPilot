@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oopspilot"
+version = "0.1.0"
+description = "AI operations benchmark environment for hackathon evaluation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["openenv", "hackathon", "ops", "pilot", "benchmark"]
+authors = [{ name = "Nihar" }]
+
+dependencies = [
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "numpy>=1.24.0",
+    "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.25.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.7.0",
+    "structlog>=23.2.0",
+    "python-dateutil>=2.8.2",
+    "python-dotenv>=1.0.0",
+    "orjson>=3.9.0",
+    "aiofiles>=23.2.0",
+    "streamlit>=1.32.0",
+    "pandas>=2.0.0",
+    "plotly>=5.18.0",
+    "requests>=2.31.0",
+    "reportlab>=4.0.0",
+    "openai>=1.12.0",
+    "openenv-core>=0.2.0"
+]
+
+[project.scripts]
+server = "server.app:main"

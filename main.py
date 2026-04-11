@@ -3,6 +3,13 @@
 import subprocess
 import sys
 import os
+import requests
+from pathlib import Path
+
+# Ensure local project packages are importable when running in a container.
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 # ── Fix Windows console encoding for emoji ──────────────────────────────────
 if sys.platform == "win32":
@@ -106,8 +113,10 @@ print("[OK] Dependencies ready\n")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from datetime import datetime
+import json
 from typing import Dict, Any, Optional, List, Union
 import uvicorn
 import traceback
@@ -549,23 +558,31 @@ async def grade_content(
 
 @app.post("/baseline")
 async def execute_baseline_agent(
+    provider: str = "baseline",
+    model: str = "gpt-4o-mini",
+    api_key: Optional[str] = None,
+    custom_base_url: Optional[str] = None,
     observation: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Execute the baseline agent to get an action recommendation.
-    
+    Execute the baseline agent or an external provider to get an action recommendation.
+
     Args:
-        observation: Current observation (optional, will use environment if not provided)
-        context: Additional context for the agent
-        
+        provider: Which agent provider to use (baseline, openai, custom, etc.)
+        model: Model name for external providers.
+        api_key: Optional API key for provider authentication.
+        custom_base_url: Optional custom OpenAI-compatible base URL.
+        observation: Current observation (optional, will use environment if not provided).
+        context: Additional context for the agent.
+
     Returns:
-        JSON response with agent action and reasoning
+        JSON response with agent action and reasoning.
     """
     global ops_env
-    
+
     try:
-        # Get observation from environment if not provided
+        # Determine the observation to use
         if observation is None:
             if ops_env is None:
                 raise HTTPException(
@@ -575,44 +592,75 @@ async def execute_baseline_agent(
                         "message": "Either provide an observation or call /reset first"
                     }
                 )
-            
-            # Get current observation from environment
             current_obs = ops_env.state_manager.get_current_observation()
             observation = current_obs.model_dump()
-        
-        # Execute baseline agent
-        action_result = baseline_agent.execute_action("generate_action", {
-            "observation": observation,
-            "context": context or {}
-        })
-        
-        # Extract the actual action from the result
-        actual_action = action_result.get("result", {})
-        if not actual_action:
-            actual_action = {
-                "email_actions": [],
-                "task_priorities": [],
-                "scheduling": [],
-                "skip_ids": []
+
+        if provider == "baseline":
+            action_result = baseline_agent.execute_action("generate_action", {
+                "observation": observation,
+                "context": context or {}
+            })
+            actual_action = action_result.get("result", {})
+            if not actual_action:
+                actual_action = {
+                    "email_actions": [],
+                    "task_priorities": [],
+                    "scheduling": [],
+                    "skip_ids": []
+                }
+
+            return {
+                "success": True,
+                "agent_type": "baseline",
+                "provider": "baseline",
+                "model": "baseline",
+                "action": actual_action,
+                "reasoning": action_result.get("reasoning", ""),
+                "confidence": action_result.get("confidence", 0.5),
+                "execution_time": action_result.get("execution_time", 0.0),
+                "timestamp": datetime.now().isoformat()
             }
-        
+
+        from agents.providers import get_agent
+
+        effective_api_key = api_key or os.getenv("API_KEY", "").strip()
+        effective_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
+        agent_response = get_agent(
+            provider,
+            model,
+            effective_api_key,
+            observation,
+            effective_base_url or ""
+        )
+
+        if not agent_response.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "External agent execution failed",
+                    "message": agent_response.get("error", "Unknown error"),
+                    "provider": provider,
+                    "model": model
+                }
+            )
+
         return {
             "success": True,
-            "agent_type": "baseline",
-            "action": actual_action,
-            "reasoning": action_result.get("reasoning", ""),
-            "confidence": action_result.get("confidence", 0.5),
-            "execution_time": action_result.get("execution_time", 0.0),
+            "agent_type": provider,
+            "provider": agent_response.get("provider", provider),
+            "model": agent_response.get("model", model),
+            "action": agent_response.get("action", {}),
+            "raw_response": agent_response.get("raw_response", ""),
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail={
-                "error": "Baseline agent execution failed",
+                "error": "Agent execution failed",
                 "message": str(e),
                 "traceback": traceback.format_exc() if hasattr(app, 'debug') and app.debug else None
             }
@@ -1018,37 +1066,72 @@ async def get_available_models() -> Dict[str, Any]:
 
 # Additional utility endpoints
 
-@app.get("/")
-async def root() -> Dict[str, Any]:
+@app.get("/", response_class=HTMLResponse)
+async def root() -> HTMLResponse:
     """Root endpoint with API information."""
-    return {
-        "name": "OpsPilot API",
-        "version": "1.0.0",
-        "description": "Production-grade OpsPilot environment with comprehensive grading system",
-        "endpoints": {
-            "POST /reset": "Reset environment and get initial observation",
-            "POST /step": "Execute action in environment",
-            "GET /state": "Get complete environment state",
-            "GET /tasks": "Get available task information",
-            "POST /grader": "Grade content using specified grader",
-            "POST /baseline": "Execute baseline agent",
-            "POST /counterfactual": "Evaluate counterfactual scenarios for actions",
-            "GET /health": "Health check endpoint"
-        },
-        "features": {
-            "counterfactual_evaluation": {
-                "description": "What-if analysis without state mutation",
-                "capabilities": ["optimal_baseline", "random_baseline", "regret_analysis", "improvement_insights"],
-                "safety": "State cloning ensures no environment mutation"
-            },
-            "multi_objective_grading": {
-                "graders": ["email", "response", "decision", "scheduling", "final"],
-                "penalty_system": True,
-                "weighted_scoring": True
-            }
-        },
-        "timestamp": datetime.now().isoformat()
-    }
+    health_data = await health_check()
+    models_data = await get_available_models()
+    tasks_data = await get_available_tasks()
+    graders_data = await get_grader_info()
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>OpsPilot API</title>
+        <style>
+            body {{ font-family: Inter, system-ui, sans-serif; margin: 0; padding: 24px; background: #0b1220; color: #f8fafc; }}
+            h1 {{ margin-top: 0; }}
+            .card {{ background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; border-radius: 18px; padding: 24px; margin-bottom: 20px; }}
+            .grid {{ display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }}
+            a {{ color: #7dd3fc; text-decoration: none; }}
+            pre {{ white-space: pre-wrap; word-break: break-word; background: #020617; padding: 18px; border-radius: 14px; overflow-x: auto; max-height: 420px; }}
+            code {{ color: #cbd5e1; background: rgba(148, 163, 184, 0.12); padding: 2px 6px; border-radius: 6px; }}
+            .small {{ color: #94a3b8; font-size: 0.95rem; margin-top: 8px; }}
+        </style>
+    </head>
+    <body>
+        <h1>OpsPilot API</h1>
+        <p class="small">Live API status and metadata for your deployed OpsPilot service.</p>
+        <div class="grid">
+            <div class="card">
+                <h2>Available Endpoints</h2>
+                <ul>
+                    <li><strong>POST</strong> <code>/reset</code></li>
+                    <li><strong>POST</strong> <code>/step</code></li>
+                    <li><strong>GET</strong> <code>/state</code></li>
+                    <li><strong>GET</strong> <code>/tasks</code></li>
+                    <li><strong>POST</strong> <code>/grader</code></li>
+                    <li><strong>POST</strong> <code>/baseline</code></li>
+                    <li><strong>POST</strong> <code>/counterfactual</code></li>
+                    <li><strong>GET</strong> <code>/models</code></li>
+                    <li><strong>GET</strong> <code>/graders</code></li>
+                    <li><strong>GET</strong> <code>/leaderboard</code></li>
+                    <li><strong>POST</strong> <code>/submit_score</code></li>
+                    <li><strong>GET</strong> <code>/health</code></li>
+                </ul>
+            </div>
+            <div class="card">
+                <h2>Live Health Output</h2>
+                <pre>{json.dumps(health_data, indent=2)}</pre>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <h2>Live Models Output</h2>
+                <pre>{json.dumps(models_data, indent=2)}</pre>
+            </div>
+            <div class="card">
+                <h2>Tasks & Graders</h2>
+                <pre>{json.dumps({"tasks": tasks_data, "graders": graders_data}, indent=2)}</pre>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @app.get("/graders")

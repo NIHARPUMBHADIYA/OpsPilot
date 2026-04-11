@@ -1,9 +1,11 @@
+
 """
 Universal AI provider system for OpsPilot++ benchmarking.
 Supports any AI model — from tiny local models to massive frontier models.
 """
 
 import json
+import os
 import requests
 import hashlib
 import time
@@ -135,6 +137,19 @@ PROVIDERS = {
 }
 
 
+def _resolve_provider_settings(provider: str, api_key: str, custom_base_url: str) -> tuple[Optional[str], str]:
+    """Resolve API endpoint and key using injected environment variables."""
+    env_base_url = os.getenv("API_BASE_URL", "").strip()
+    env_api_key = os.getenv("API_KEY", "").strip()
+    effective_api_key = api_key or env_api_key or ""
+    effective_base_url = custom_base_url.strip() or env_base_url or PROVIDERS.get(provider, {}).get("base_url")
+
+    if provider == "custom" and not effective_base_url:
+        effective_base_url = env_base_url
+
+    return effective_base_url, effective_api_key
+
+
 # ---------------------------------------------------------------------------
 # Shared prompt builder
 # ---------------------------------------------------------------------------
@@ -162,7 +177,9 @@ def _call_openai_compatible(base_url: Optional[str], api_key: str, model: str, p
     except ImportError:
         raise RuntimeError("openai package not installed. Run: pip install openai")
 
-    kwargs = {"api_key": api_key or "ollama"}
+    kwargs = {}
+    if api_key:
+        kwargs["api_key"] = api_key
     if base_url:
         kwargs["base_url"] = base_url
 
@@ -296,6 +313,8 @@ def get_agent(
     
     Users without premium API keys can use Ollama or Baseline for FREE!
     """
+    api_key = api_key or os.getenv("API_KEY", "").strip()
+    custom_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
     cache_key = hashlib.md5(json.dumps(observation, sort_keys=True).encode()).hexdigest()
     
     # 1. CHECK CACHE FIRST (instant response, no API call)
@@ -370,30 +389,36 @@ def get_agent(
             else:
                 raise ValueError(result.get("error", "Ollama failed"))
         elif provider == "openai":
-            if not api_key:
+            base_url, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not effective_key:
                 raise ValueError("OpenAI API key required")
-            raw = _call_openai_compatible(None, api_key, model, prompt)
+            raw = _call_openai_compatible(base_url, effective_key, model, prompt)
         elif provider == "anthropic":
-            if not api_key:
+            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not effective_key:
                 raise ValueError("Anthropic API key required")
-            raw = _call_anthropic(api_key, model, prompt)
+            raw = _call_anthropic(effective_key, model, prompt)
         elif provider == "google":
-            if not api_key:
+            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not effective_key:
                 raise ValueError("Google API key required")
-            raw = _call_google(api_key, model, prompt)
+            raw = _call_google(effective_key, model, prompt)
         elif provider == "cohere":
-            if not api_key:
+            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not effective_key:
                 raise ValueError("Cohere API key required")
-            raw = _call_cohere(api_key, model, prompt)
+            raw = _call_cohere(effective_key, model, prompt)
         elif provider in ("mistral", "groq", "together"):
-            if not api_key:
+            _, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not effective_key:
                 raise ValueError(f"{provider.title()} API key required")
             base_url = PROVIDERS[provider]["base_url"]
-            raw = _call_openai_compatible(base_url, api_key, model, prompt)
+            raw = _call_openai_compatible(base_url, effective_key, model, prompt)
         elif provider == "custom":
-            if not custom_base_url:
+            base_url, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+            if not base_url:
                 raise ValueError("Custom provider requires base URL")
-            raw = _call_openai_compatible(custom_base_url.rstrip("/"), api_key or "custom", model, prompt)
+            raw = _call_openai_compatible(base_url.rstrip("/"), effective_key or "custom", model, prompt)
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
