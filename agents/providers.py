@@ -187,6 +187,14 @@ def _use_injected_proxy(provider: str, base_url: Optional[str], api_key: str) ->
     )
 
 
+def _should_force_live_proxy_call(
+    provider: str, custom_base_url: str, api_key: str
+) -> bool:
+    """Disable local shortcuts when the validator injects a LiteLLM proxy."""
+    base_url, effective_key = _resolve_provider_settings(provider, api_key, custom_base_url)
+    return _use_injected_proxy(provider, base_url, effective_key)
+
+
 # ---------------------------------------------------------------------------
 # Shared prompt builder
 # ---------------------------------------------------------------------------
@@ -396,12 +404,13 @@ def get_agent(
     """
     api_key = api_key or os.getenv("API_KEY", "").strip()
     custom_base_url = custom_base_url or os.getenv("API_BASE_URL", "").strip()
+    force_live_proxy_call = _should_force_live_proxy_call(provider, custom_base_url, api_key)
     cache_key = hashlib.md5(
         json.dumps(observation, sort_keys=True).encode()
     ).hexdigest()
 
     # 1. CHECK CACHE FIRST (instant response, no API call)
-    if cache_key in _RESPONSE_CACHE:
+    if not force_live_proxy_call and cache_key in _RESPONSE_CACHE:
         cached_response, cache_time = _RESPONSE_CACHE[cache_key]
         if time.time() - cache_time < _CACHE_TTL:
             try:
@@ -419,7 +428,7 @@ def get_agent(
 
     # 2. TRY OLLAMA FIRST (FREE, local, no API key needed)
     # Only skip if user explicitly selected a different provider
-    if provider not in (
+    if not force_live_proxy_call and provider not in (
         "baseline",
         "openai",
         "anthropic",
@@ -457,7 +466,8 @@ def get_agent(
 
     # 3. USE BASELINE AGENT (FREE, always works, no API key needed)
     # Use if: provider is "baseline" OR no API key provided AND not explicitly requesting API
-    if provider == "baseline" or (
+    if not force_live_proxy_call and (
+        provider == "baseline" or (
         not api_key
         and provider
         not in (
@@ -469,6 +479,7 @@ def get_agent(
             "groq",
             "together",
             "custom",
+        )
         )
     ):
         try:
@@ -608,6 +619,8 @@ def get_agent(
                 "error": None,
             }
         else:
+            if force_live_proxy_call:
+                raise ValueError("Proxy LLM returned an invalid action payload")
             # Validation failed - try Ollama, then baseline
             try:
                 from agents.ollama_agent import OllamaAgent, check_ollama_available
@@ -657,6 +670,15 @@ def get_agent(
                 }
 
     except json.JSONDecodeError as e:
+        if force_live_proxy_call:
+            return {
+                "success": False,
+                "action": {},
+                "raw_response": raw,
+                "provider": provider,
+                "model": model,
+                "error": f"JSON parse failed: {str(e)[:100]}",
+            }
         # JSON parse failed - try Ollama, then baseline
         try:
             from agents.ollama_agent import OllamaAgent, check_ollama_available
@@ -713,6 +735,15 @@ def get_agent(
             "error": f"JSON parse failed: {str(e)[:100]}",
         }
     except Exception as e:
+        if force_live_proxy_call:
+            return {
+                "success": False,
+                "action": {},
+                "raw_response": raw,
+                "provider": provider,
+                "model": model,
+                "error": str(e)[:100],
+            }
         # API call failed - try Ollama, then baseline
         try:
             from agents.ollama_agent import OllamaAgent, check_ollama_available
